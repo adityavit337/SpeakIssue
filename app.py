@@ -2,6 +2,7 @@
 # This block handles all the necessary imports for running the Flask app,
 # handling models, managing audio files, and integrating the RAG manager.
 import os
+import json
 import torch
 import torchaudio
 import sqlite3
@@ -94,9 +95,16 @@ def init_db():
             transcription TEXT,
             translation TEXT,
             rag_answer TEXT,
+            sources TEXT DEFAULT '[]',
             timestamp DATETIME DEFAULT CURRENT_TIMESTAMP
         )
     ''')
+    # Migrate: add 'sources' column if it doesn't exist (for existing DBs)
+    try:
+        cursor.execute('ALTER TABLE recordings ADD COLUMN sources TEXT DEFAULT "[]"')
+        conn.commit()
+    except sqlite3.OperationalError:
+        pass  # column already exists
     conn.commit()
     conn.close()
 
@@ -136,7 +144,8 @@ def transcribe_audio():
             resampler = torchaudio.transforms.Resample(orig_freq=sr, new_freq=target_sample_rate)
             wav = resampler(wav)
             
-        transcription_rnnt = model(wav, language, "rnnt")
+        asr_language = "hi" if language == "en" else language
+        transcription_rnnt = model(wav, asr_language, "rnnt")
         print(f"[DEBUG] ASR raw result: type={type(transcription_rnnt)}, value={transcription_rnnt}")
             
         # Safely extract text from ASR result
@@ -148,10 +157,20 @@ def transcribe_audio():
             text = ""
         print("Transcription result:", text)
         
-        # 3. Translate the transcribed text to English
+        # 3. Translate the transcribed text to English (only for minor languages)
+        # Major Indian languages that Llama 3.3 on Groq understands natively —
+        # for these, we skip IndicTrans2 and send the original text straight to RAG.
+        # This avoids garbled translations (e.g. "PM Samman Nidhi" → "Saman Sad Vidhi").
+        groq_native_langs = {'hi', 'bn', 'ta', 'te', 'mr', 'gu', 'kn', 'ml', 'pa', 'ur', 'en'}
+
         flores_src_lang = flores_codes.get(language)
         translation = ""
-        if flores_src_lang and text and text.strip():
+
+        if language in groq_native_langs:
+            # Groq/Llama understands this language — skip translation
+            print(f"[DIRECT] Language '{language}' is natively understood by Groq — skipping translation")
+        elif flores_src_lang and text and text.strip():
+            # Minor language — use IndicTrans2 to translate to English
             print(f"Translating to English from {flores_src_lang}...")
             batch = [text.strip()]
             batch = ip.preprocess_batch(batch, src_lang=flores_src_lang, tgt_lang="eng_Latn")
@@ -191,23 +210,40 @@ def transcribe_audio():
             translation = translations[0]
             print("Translation result:", translation)
 
-        # 4. RAG: answer the query using the English text (or original text if no translation)
-        query_text = translation if translation else (text.strip() if text else "")
+        # 4. RAG: build the query text
+        # For Groq-native languages: use original text directly (no translation needed).
+        # For minor languages: use English translation, with original text fallback if translation is weak.
+        original_text = text.strip() if text else ""
+        if language in groq_native_langs:
+            # Send original Indic text directly — Groq understands it
+            query_text = original_text
+        elif translation and len(translation.split()) >= 5:
+            query_text = translation
+        elif translation and original_text:
+            # Translation exists but is too short — combine both for maximum recall
+            query_text = f"{translation} | {original_text}"
+            print(f"[FALLBACK] Translation too short ({len(translation.split())} words), appending original text")
+        else:
+            query_text = original_text
         rag_answer = ""
+        rag_sources = []
         if rag_manager and query_text:
-            print(f"Querying RAG with: {query_text}")
-            rag_result = rag_manager.query(query_text)
+            print(f"Querying RAG with: {query_text} (Language: {language})")
+            rag_result = rag_manager.query(query_text, language_code=language)
             rag_answer = rag_result.get("answer", "")
+            rag_sources = rag_result.get("sources", [])
             print(f"RAG answer: {rag_answer[:200]}")
+            print(f"Sources: {len(rag_sources)} source(s) found")
 
         # 5. Save the results to our simple SQLite database
         safe_text = text.strip() if text else ""
         conn = sqlite3.connect('data/history.db')
         cursor = conn.cursor()
+        sources_json = json.dumps(rag_sources)
         cursor.execute('''
-            INSERT INTO recordings (id, filename, transcription, translation, rag_answer)
-            VALUES (?, ?, ?, ?, ?)
-        ''', (file_id, filename, safe_text, translation, rag_answer))
+            INSERT INTO recordings (id, filename, transcription, translation, rag_answer, sources)
+            VALUES (?, ?, ?, ?, ?, ?)
+        ''', (file_id, filename, safe_text, translation, rag_answer, sources_json))
         conn.commit()
         conn.close()
 
@@ -218,6 +254,7 @@ def transcribe_audio():
             'text': safe_text,
             'translation': translation,
             'rag_answer': rag_answer,
+            'sources': rag_sources,
         })
     except Exception as e:
         import traceback
@@ -264,7 +301,13 @@ def get_history():
     for row in rows:
         filepath = os.path.join(UPLOAD_FOLDER, row['filename'])
         if os.path.exists(filepath):
-            history.append(dict(row))
+            item = dict(row)
+            # Parse the sources JSON string back into a list
+            try:
+                item['sources'] = json.loads(item.get('sources', '[]'))
+            except (json.JSONDecodeError, TypeError):
+                item['sources'] = []
+            history.append(item)
         else:
             orphan_ids.append(row['id'])
 

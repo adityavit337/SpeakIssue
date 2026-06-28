@@ -367,6 +367,72 @@
       color: var(--accent);
     }
 
+    /* ── Source metadata tags ── */
+    .sources-section {
+      margin-top: 10px;
+      padding: 10px 14px;
+      background: rgba(16, 185, 129, 0.04);
+      border: 1px solid rgba(16, 185, 129, 0.15);
+      border-radius: 10px;
+    }
+
+    .sources-label {
+      font-size: 11px;
+      font-weight: 600;
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+      color: var(--success);
+      margin-bottom: 8px;
+      display: flex;
+      align-items: center;
+      gap: 5px;
+    }
+
+    .source-tag {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      background: #fff;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 5px 10px;
+      margin: 3px 4px 3px 0;
+      font-size: 12px;
+      color: var(--text);
+      transition: all 0.2s ease;
+    }
+
+    .source-tag:hover {
+      border-color: var(--accent);
+      box-shadow: 0 2px 8px rgba(99, 120, 255, 0.1);
+    }
+
+    .source-tag .tag-icon {
+      font-size: 11px;
+    }
+
+    .source-tag .tag-name {
+      font-weight: 500;
+      max-width: 200px;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .source-tag.web-source {
+      border-color: rgba(168, 85, 247, 0.25);
+    }
+
+    .source-tag a {
+      color: var(--accent2);
+      text-decoration: none;
+      font-size: 11px;
+    }
+
+    .source-tag a:hover {
+      text-decoration: underline;
+    }
+
   </style>
 </head>
 
@@ -389,25 +455,14 @@
       </div>
       <select id="languageSelect"
         style="background: var(--surface); color: var(--text); border: 1px solid var(--border); border-radius: 8px; padding: 6px 10px; font-size: 12px; font-family: inherit; outline: none; cursor: pointer;">
+        <option value="en">English</option>
         <option value="hi" selected>Hindi</option>
-        <option value="as">Assamese</option>
         <option value="bn">Bengali</option>
-        <option value="brx">Bodo</option>
-        <option value="doi">Dogri</option>
         <option value="gu">Gujarati</option>
         <option value="kn">Kannada</option>
-        <option value="ks">Kashmiri</option>
-        <option value="kok">Konkani</option>
-        <option value="mai">Maithili</option>
         <option value="ml">Malayalam</option>
-        <option value="mni">Manipuri</option>
         <option value="mr">Marathi</option>
-        <option value="ne">Nepali</option>
-        <option value="or">Odia</option>
         <option value="pa">Punjabi</option>
-        <option value="sa">Sanskrit</option>
-        <option value="sat">Santali</option>
-        <option value="sd">Sindhi</option>
         <option value="ta">Tamil</option>
         <option value="te">Telugu</option>
         <option value="ur">Urdu</option>
@@ -446,6 +501,37 @@
 
 
   <script>
+    // ── HELPER: Build source metadata HTML ──
+    // Renders a list of source objects as styled tags showing document names,
+    // relevance scores, and clickable web links.
+    function buildSourcesHtml(sources) {
+      let html = '<div class="sources-label">📚 Sources</div><div>';
+      sources.forEach(src => {
+        const isWeb = src.type === 'web';
+        const icon = isWeb ? '🌐' : '📄';
+        const cssClass = isWeb ? 'source-tag web-source' : 'source-tag';
+        const name = src.source || 'Unknown';
+
+        let pageHtml = '';
+        if (src.page != null) {
+          pageHtml = `<span style="font-size:11px; color:var(--muted);">p.${src.page}</span>`;
+        }
+
+        let linkHtml = '';
+        if (isWeb && src.url) {
+          linkHtml = `<a href="${src.url}" target="_blank" rel="noopener">↗ Open</a>`;
+        }
+
+        html += `<span class="${cssClass}">
+          <span class="tag-icon">${icon}</span>
+          <span class="tag-name" title="${name}">${name}</span>
+          ${pageHtml}${linkHtml}
+        </span>`;
+      });
+      html += '</div>';
+      return html;
+    }
+
     // ── BLOCK 1: DOM ELEMENT REFERENCES ──
     // Caches references to all interactive HTML elements so we can update their
     // state (text, classes, visibility) from JavaScript without repeated DOM lookups.
@@ -756,6 +842,14 @@
             ragDiv.innerHTML = `<strong>🤖 Kisan Mitra:</strong><br>${data.rag_answer}`;
             transDiv.parentNode.appendChild(ragDiv);
           }
+
+          // ── Display source metadata ──
+          if (data.sources && data.sources.length > 0) {
+            const sourcesDiv = document.createElement('div');
+            sourcesDiv.className = 'sources-section';
+            sourcesDiv.innerHTML = buildSourcesHtml(data.sources);
+            transDiv.parentNode.appendChild(sourcesDiv);
+          }
         }
       } catch (err) {
         transDiv.innerHTML = `<span style="color: var(--danger);">Error connecting to server. Is app.py running?</span>`;
@@ -788,6 +882,12 @@
         ragHtml = `<div class="rag-answer" style="display: block;"><strong>🤖 Kisan Mitra:</strong><br>${dbItem.rag_answer}</div>`;
       }
 
+      let sourcesHtml = "";
+      const sources = dbItem.sources || [];
+      if (sources.length > 0) {
+        sourcesHtml = `<div class="sources-section">${buildSourcesHtml(sources)}</div>`;
+      }
+
       itemDiv.innerHTML = `
       <div class="rec-icon">🎙️</div>
       <div class="rec-meta">
@@ -797,6 +897,7 @@
           ${textHtml}
         </div>
         ${ragHtml}
+        ${sourcesHtml}
       </div>
       <div class="rec-actions">
         <button class="icon-btn play-ic" title="Play">▶</button>

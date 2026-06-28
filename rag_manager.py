@@ -154,12 +154,10 @@ class RAGManager:
         """
         pass
 
-    def _search_policy_documents(self, search_query: str) -> str:
+    def _search_policy_documents_with_metadata(self, search_query: str):
         """
         Search the local government policy database for rules, eligibility,
-        procedures, and amounts. Use this tool FIRST whenever the user asks
-        about PM-KISAN, PMFBY, Soil Health Card, or other agricultural policies.
-        Formulate clear, specific keyword queries.
+        procedures, and amounts. Returns (context_text, sources_metadata).
         """
         print(f"\n[TOOL EXECUTION] search_policy_documents: '{search_query}'")
 
@@ -167,7 +165,7 @@ class RAGManager:
         retrieved_nodes = self.hybrid_retriever.retrieve(search_query)
 
         if not retrieved_nodes:
-            return "No documents found."
+            return "No documents found.", []
 
         # Rerank the retrieved nodes
         from llama_index.core.schema import QueryBundle
@@ -185,49 +183,131 @@ class RAGManager:
 
         result_text = "\n\n--- Document Snippet ---\n\n".join(snippets)
         print(f"  → Found {len(snippets)} relevant snippets.")
-        return result_text
+
+        # Extract structured source metadata for the frontend
+        sources = self._extract_source_metadata(reranked_nodes)
+        return result_text, sources
 
     @staticmethod
-    def _search_web(search_query: str) -> str:
+    def _search_web_with_metadata(search_query: str):
         """
         Search the internet for general information.
-        Use this ONLY if search_policy_documents does not contain the answer.
+        Returns (context_text, sources_metadata).
         """
         print(f"\n[TOOL EXECUTION] search_web: '{search_query}'")
         try:
             with DDGS() as ddgs:
                 results = list(ddgs.text(search_query, max_results=3))
             snippets = []
+            sources = []
             for r in results:
                 snippets.append(f"Title: {r['title']}\n{r['body']}")
-            return "\n\n".join(snippets) if snippets else "No web results found."
+                sources.append({
+                    "source": r.get("title", "Web Result"),
+                    "url": r.get("href", ""),
+                    "type": "web",
+                })
+            context = "\n\n".join(snippets) if snippets else "No web results found."
+            return context, sources
         except Exception as e:
-            return f"Web search failed: {e}"
+            return f"Web search failed: {e}", []
 
     # ── PUBLIC API (unchanged interface for app.py) ──
 
-    def query(self, question: str) -> Dict[str, Any]:
+    def _extract_source_metadata(self, reranked_nodes) -> List[Dict[str, Any]]:
+        """
+        Extract structured metadata from reranked nodes so the frontend
+        can display exactly which documents each answer came from.
+        """
+        sources = []
+        seen = set()  # deduplicate by (source, page)
+        for node_with_score in reranked_nodes:
+            meta = node_with_score.node.metadata or {}
+            source_file = meta.get("source", meta.get("file_name", "Unknown"))
+            page = meta.get("page_label", meta.get("page", None))
+            score = round(float(node_with_score.score), 4) if node_with_score.score is not None else None
+
+            dedup_key = (source_file, str(page))
+            if dedup_key in seen:
+                continue
+            seen.add(dedup_key)
+
+            entry = {
+                "source": source_file,
+                "relevance_score": score,
+                "type": "document",
+            }
+            if page is not None:
+                entry["page"] = page
+            sources.append(entry)
+            
+            # Keep only the top source for documents
+            if len(sources) >= 1:
+                break
+
+        return sources
+
+    def _prepare_query_for_retrieval(self, question: str) -> str:
+        """
+        Uses Groq to quickly correct common voice-to-text (ASR) phonetic errors
+        (e.g., "noodle" -> "nodal", "saman" -> "samman") and translate the query
+        to English keywords for retrieval. This ensures BM25 (keyword-based)
+        can match English document chunks accurately.
+        """
+        print(f"[PREPARE RETRIEVAL QUERY] Cleaning & translating: '{question}'")
+        try:
+            prompt = f"""You are an expert in Indian Agricultural Policies (PM-KISAN, PMFBY, etc.).
+The following user query was generated via voice-to-text and may contain phonetic spelling errors (e.g., 'noodle' instead of 'nodal', 'saman' instead of 'samman').
+Correct any obvious errors and translate to English keywords for a database search.
+Output ONLY the corrected English keywords, nothing else.
+
+Query: {question}"""
+            async def _do_prepare():
+                return await self.llm.acomplete(prompt)
+            response = _run_async(_do_prepare(), timeout=15)
+            prepared_query = str(response.text).strip()
+            print(f"[PREPARE RETRIEVAL QUERY] → '{prepared_query}'")
+            return prepared_query
+        except Exception as e:
+            print(f"[PREPARE RETRIEVAL QUERY] Failed ({e}), using original query")
+            return question
+
+    def query(self, question: str, language_code: str = "en") -> Dict[str, Any]:
         """
         Execute an Agentic RAG query using LlamaIndex's ReAct agent.
-        Returns the same dict shape as the old implementation for backward compatibility.
+        Returns the same dict shape as the old implementation for backward compatibility,
+        plus a 'sources' list with metadata about the retrieved documents.
         """
         print(f"\n[{'='*40}]")
         print(f"USER QUERY: {question}")
         print(f"[{'='*40}]")
 
         try:
+            # 0. Clean and translate query to English for retrieval (BM25 needs English keywords
+            #    to match English documents, and ASR often makes phonetic mistakes).
+            retrieval_query = self._prepare_query_for_retrieval(question)
+
             # 1. Fetch Context via pure Python (No LLM workload)
-            policy_context = self._search_policy_documents(question)
+            policy_context, policy_sources = self._search_policy_documents_with_metadata(retrieval_query)
             
             # Fetch web context conditionally if policy is empty, or just parallelize.
             # For maximum context, we'll quickly grab top 2 web results.
-            web_context = self._search_web(question)
+            web_context, web_sources = self._search_web_with_metadata(retrieval_query)
             
+            # Map language code to full name for the LLM prompt
+            lang_map = {
+                "hi": "Hindi", "bn": "Bengali", "gu": "Gujarati", 
+                "kn": "Kannada", "ml": "Malayalam", "mr": "Marathi", 
+                "pa": "Punjabi", "ta": "Tamil", "te": "Telugu", "ur": "Urdu",
+                "en": "English"
+            }
+            target_language = lang_map.get(language_code, "English")
+
             # 2. Build a single-pass prompt
             prompt = f"""You are "Kisan Mitra", a helpful agricultural policy assistant.
-Use the provided Context to answer the User Query. 
+Use the provided Context to answer the User Query. The query may be in Hindi or another Indian language — understand it, but ALWAYS respond in {target_language}.
 Prioritize information from the Official Policy Documents. If they do not contain the answer, use the Web Search Context.
-If neither contains the answer, say "I don't know based on the provided context".
+If neither contains the answer, say "I don't know based on the provided context" (translate this phrase to {target_language} if applicable).
 Quote exact numbers and amounts when found.
 
 --- Context from Official Policy Documents ---
@@ -247,10 +327,14 @@ Answer:"""
             final_answer = str(response.text)
             print(f"\n--- Final Answer ---\n{final_answer.strip()}")
 
+            # Combine all source metadata
+            all_sources = policy_sources + web_sources
+
             return {
                 "answer": final_answer.strip(),
                 "source": "unified_single_pass",
                 "context_used": ["policy_docs", "web_search"],
+                "sources": all_sources,
             }
         except Exception as e:
             print(f"Agent error: {e}")
@@ -260,6 +344,7 @@ Answer:"""
                 "answer": f"I encountered an error while searching: {e}",
                 "source": "error",
                 "context_used": [],
+                "sources": [],
             }
 
 
