@@ -1,0 +1,837 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Voice Input — Policy Assistant</title>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet" />
+  <!-- MP3 encoder -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/lamejs/1.2.1/lame.min.js"></script>
+  <style>
+    *,
+    *::before,
+    *::after {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    :root {
+      --bg: #ffffff;
+      --surface: #f8fafc;
+      --card: #ffffff;
+      --border: #e2e8f0;
+      --accent: #6378ff;
+      --accent2: #a855f7;
+      --danger: #f43f5e;
+      --success: #10b981;
+      --text: #0f172a;
+      --muted: #64748b;
+      --radius: 16px;
+    }
+
+    body {
+      font-family: 'Inter', sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      padding: 24px;
+    }
+
+    /* ── Background glow ── */
+    body::before {
+      content: '';
+      position: fixed;
+      top: -200px;
+      left: 50%;
+      transform: translateX(-50%);
+      width: 700px;
+      height: 700px;
+      background: radial-gradient(circle, rgba(99, 120, 255, 0.12) 0%, transparent 70%);
+      pointer-events: none;
+    }
+
+    h1 {
+      font-size: clamp(1.6rem, 4vw, 2.4rem);
+      font-weight: 700;
+      text-align: center;
+      color: var(--text);
+      margin-bottom: 8px;
+    }
+
+
+    /* ── Card ── */
+    .card {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 36px 32px;
+      width: 100%;
+      max-width: 520px;
+      box-shadow: 0 12px 48px rgba(0, 0, 0, 0.06);
+      position: relative;
+      overflow: hidden;
+    }
+
+    .card::before {
+      content: '';
+      position: absolute;
+      top: 0;
+      left: 0;
+      right: 0;
+      height: 1px;
+      background: linear-gradient(90deg, transparent, var(--accent), transparent);
+    }
+
+    /* ── Status chip ── */
+    .status {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 13px;
+      font-weight: 500;
+      color: var(--muted);
+      margin-bottom: 24px;
+      min-height: 22px;
+      transition: color 0.3s;
+    }
+
+    .status .dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: var(--muted);
+      flex-shrink: 0;
+      transition: background 0.3s;
+    }
+
+    .status.recording {
+      color: var(--danger);
+    }
+
+    .status.recording .dot {
+      background: var(--danger);
+      animation: blink 1s step-start infinite;
+    }
+
+    .status.ready {
+      color: var(--success);
+    }
+
+    .status.ready .dot {
+      background: var(--success);
+    }
+
+    @keyframes blink {
+      50% {
+        opacity: 0;
+      }
+    }
+
+    /* ── Timer ── */
+    .timer {
+      font-variant-numeric: tabular-nums;
+      font-size: 13px;
+      color: var(--danger);
+      margin-left: auto;
+      display: none;
+    }
+
+    .recording .timer {
+      display: block;
+    }
+
+    /* ── Buttons ── */
+    .btn-row {
+      display: flex;
+      gap: 12px;
+    }
+
+    .btn {
+      flex: 1;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      padding: 14px 18px;
+      border: none;
+      border-radius: 12px;
+      font-family: 'Inter', sans-serif;
+      font-size: 14px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.2s ease;
+      position: relative;
+      overflow: hidden;
+    }
+
+    .btn:disabled {
+      opacity: 0.35;
+      cursor: not-allowed;
+      pointer-events: none;
+    }
+
+    .btn::after {
+      content: '';
+      position: absolute;
+      inset: 0;
+      background: rgba(255, 255, 255, 0);
+      transition: background 0.2s;
+    }
+
+    .btn:not(:disabled):hover::after {
+      background: rgba(255, 255, 255, 0.06);
+    }
+
+    .btn:not(:disabled):active {
+      transform: scale(0.97);
+    }
+
+    #recordBtn {
+      background: var(--accent);
+      color: #fff;
+      box-shadow: 0 4px 20px rgba(99, 120, 255, 0.35);
+    }
+
+    #recordBtn.stop {
+      background: var(--danger);
+      box-shadow: 0 4px 20px rgba(244, 63, 94, 0.35);
+    }
+
+    #playBtn {
+      background: rgba(16, 185, 129, 0.12);
+      color: var(--success);
+      border: 1px solid rgba(16, 185, 129, 0.25);
+    }
+
+    #playBtn:not(:disabled):hover {
+      background: rgba(16, 185, 129, 0.2);
+    }
+
+    #downloadBtn {
+      background: rgba(99, 120, 255, 0.1);
+      color: var(--accent);
+      border: 1px solid var(--border);
+      flex: 0 0 auto;
+      padding: 14px 16px;
+    }
+
+    /* ── Recordings list ── */
+    .recordings-section {
+      margin-top: 28px;
+    }
+
+    .recordings-label {
+      font-size: 12px;
+      font-weight: 600;
+      letter-spacing: 0.08em;
+      color: var(--muted);
+      text-transform: uppercase;
+      margin-bottom: 12px;
+    }
+
+    .recordings-list {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      max-height: 220px;
+      overflow-y: auto;
+      scrollbar-width: thin;
+      scrollbar-color: var(--border) transparent;
+    }
+
+    .recording-item {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      background: #ffffff;
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 10px 14px;
+      animation: slideIn 0.3s ease;
+    }
+
+    @keyframes slideIn {
+      from {
+        opacity: 0;
+        transform: translateY(6px);
+      }
+
+      to {
+        opacity: 1;
+        transform: translateY(0);
+      }
+    }
+
+    .rec-icon {
+      width: 32px;
+      height: 32px;
+      background: rgba(99, 120, 255, 0.12);
+      border-radius: 8px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 14px;
+      flex-shrink: 0;
+    }
+
+    .rec-meta {
+      flex: 1;
+      min-width: 0;
+    }
+
+    .rec-name {
+      font-size: 13px;
+      font-weight: 500;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .rec-duration {
+      font-size: 11px;
+      color: var(--muted);
+      margin-top: 1px;
+    }
+
+    .rec-actions {
+      display: flex;
+      gap: 6px;
+    }
+
+    .icon-btn {
+      background: none;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      width: 30px;
+      height: 30px;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 13px;
+      color: var(--muted);
+      transition: all 0.2s;
+    }
+
+    .icon-btn:hover {
+      border-color: var(--accent);
+      color: var(--accent);
+      background: rgba(99, 120, 255, 0.08);
+    }
+
+    .icon-btn.playing {
+      border-color: var(--success);
+      color: var(--success);
+    }
+
+    .empty-state {
+      text-align: center;
+      color: var(--muted);
+      font-size: 13px;
+      padding: 20px 0;
+    }
+
+    /* ── Permission error ── */
+    .perm-error {
+      display: none;
+      background: rgba(244, 63, 94, 0.08);
+      border: 1px solid rgba(244, 63, 94, 0.25);
+      border-radius: 10px;
+      padding: 12px 16px;
+      font-size: 13px;
+      color: #fda4af;
+      margin-bottom: 16px;
+    }
+
+
+    /* ── RAG answer bubble ── */
+    .rag-answer {
+      display: none;
+      margin-top: 8px;
+      padding: 10px 14px;
+      background: linear-gradient(135deg, rgba(99, 120, 255, 0.06), rgba(168, 85, 247, 0.06));
+      border: 1px solid rgba(99, 120, 255, 0.18);
+      border-radius: 10px;
+      font-size: 13px;
+      color: var(--text);
+      line-height: 1.6;
+    }
+
+    .rag-answer strong {
+      color: var(--accent);
+    }
+
+  </style>
+</head>
+
+<body>
+
+
+  <h1>Speak Your Issue</h1>
+  <div class="card">
+    <div id="permError" class="perm-error">
+      ⚠️ Microphone access denied. Please allow microphone permissions in your browser settings.
+    </div>
+
+
+    <!-- Status row -->
+    <div class="status" id="statusRow" style="justify-content: space-between; align-items: center; width: 100%;">
+      <div style="display: flex; align-items: center; gap: 8px;">
+        <div class="dot"></div>
+        <span id="statusText">Ready to record</span>
+        <span class="timer" id="timerDisplay">0:00</span>
+      </div>
+      <select id="languageSelect"
+        style="background: var(--surface); color: var(--text); border: 1px solid var(--border); border-radius: 8px; padding: 6px 10px; font-size: 12px; font-family: inherit; outline: none; cursor: pointer;">
+        <option value="hi" selected>Hindi</option>
+        <option value="as">Assamese</option>
+        <option value="bn">Bengali</option>
+        <option value="brx">Bodo</option>
+        <option value="doi">Dogri</option>
+        <option value="gu">Gujarati</option>
+        <option value="kn">Kannada</option>
+        <option value="ks">Kashmiri</option>
+        <option value="kok">Konkani</option>
+        <option value="mai">Maithili</option>
+        <option value="ml">Malayalam</option>
+        <option value="mni">Manipuri</option>
+        <option value="mr">Marathi</option>
+        <option value="ne">Nepali</option>
+        <option value="or">Odia</option>
+        <option value="pa">Punjabi</option>
+        <option value="sa">Sanskrit</option>
+        <option value="sat">Santali</option>
+        <option value="sd">Sindhi</option>
+        <option value="ta">Tamil</option>
+        <option value="te">Telugu</option>
+        <option value="ur">Urdu</option>
+      </select>
+    </div>
+
+    <!-- Main controls -->
+    <div class="btn-row">
+      <button class="btn" id="recordBtn">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
+          <circle cx="12" cy="12" r="6" />
+        </svg>
+        <span id="recordLabel">Start Recording</span>
+      </button>
+      <button class="btn" id="playBtn" disabled>
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
+          <path d="M8 5v14l11-7z" />
+        </svg>
+        <span id="playLabel">Play Latest</span>
+      </button>
+      <button class="btn" id="downloadBtn" disabled title="Download latest recording">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
+          <path d="M19 9h-4V3H9v6H5l7 7 7-7zM5 18v2h14v-2H5z" />
+        </svg>
+      </button>
+    </div>
+
+    <!-- Recordings history -->
+    <div class="recordings-section">
+      <div class="recordings-label">Recordings</div>
+      <div class="recordings-list" id="recordingsList">
+        <div class="empty-state" id="emptyState">No recordings yet. Hit record to start.</div>
+      </div>
+    </div>
+  </div>
+
+
+  <script>
+    // ── BLOCK 1: DOM ELEMENT REFERENCES ──
+    // Caches references to all interactive HTML elements so we can update their
+    // state (text, classes, visibility) from JavaScript without repeated DOM lookups.
+    const recordBtn = document.getElementById('recordBtn');
+    const recordLabel = document.getElementById('recordLabel');
+    const playBtn = document.getElementById('playBtn');
+    const playLabel = document.getElementById('playLabel');
+    const downloadBtn = document.getElementById('downloadBtn');
+    const statusRow = document.getElementById('statusRow');
+    const statusText = document.getElementById('statusText');
+    const timerDisplay = document.getElementById('timerDisplay');
+    const permError = document.getElementById('permError');
+    const recordingsList = document.getElementById('recordingsList');
+    const emptyState = document.getElementById('emptyState');
+
+    // ── BLOCK 2: APPLICATION STATE VARIABLES ──
+    // These variables hold the runtime state of the audio recording pipeline.
+    // mediaRecorder stores the mic stream reference so we can stop it on teardown.
+    // mp3Chunks accumulates encoded MP3 frame buffers from lamejs during recording.
+    // scriptProcessor is the Web Audio ScriptProcessorNode that taps raw PCM samples.
+    // recordings[] is the in-memory list of all completed recordings in this session.
+    let mediaRecorder = null;
+    let mp3Chunks = [];
+    let mp3Encoder = null;
+    let scriptProcessor = null;
+    let recordings = [];
+    let isRecording = false;
+    let timerInterval = null;
+    let elapsed = 0;
+    let currentlyPlaying = null;
+
+    // AudioContext and source node needed for the Web Audio recording pipeline
+    let audioCtx = null, source = null;
+    const MP3_BITRATE = 128;  // kbps — controls output file size vs quality
+    const SAMPLE_RATE = 44100; // Hz — CD-quality sample rate for the mic input
+
+    // ── BLOCK 3: RECORDING TIMER ──
+    // Tracks how long the current recording has been running. The elapsed value
+    // is displayed in the UI during recording and saved as the duration metadata
+    // for each completed recording in the recordings list.
+    function fmtTime(s) {
+      const m = Math.floor(s / 60);
+      return `${m}:${String(s % 60).padStart(2, '0')}`;
+    }
+    function startTimer() {
+      elapsed = 0;
+      timerDisplay.textContent = fmtTime(0);
+      timerInterval = setInterval(() => {
+        elapsed++;
+        timerDisplay.textContent = fmtTime(elapsed);
+      }, 1000);
+    }
+    function stopTimer() {
+      clearInterval(timerInterval);
+      timerInterval = null;
+    }
+
+    // ── BLOCK 4: UI STATUS MANAGEMENT ──
+    // Updates the status indicator row (the colored dot + text below the controls).
+    // The 'state' parameter controls the CSS class which changes the dot color:
+    //   'recording' → red blinking dot, 'ready' → green dot, '' → grey dot.
+    function setStatus(state, text) {
+      statusRow.className = 'status ' + state;
+      statusText.textContent = text;
+    }
+
+    // ── BLOCK 5: RECORDING LIST MANAGEMENT ──
+    // When a recording finishes, this function creates a new UI card for it in the
+    // recordings list. Each card shows the recording name, duration, play/download/delete
+    // buttons, and a transcription area that gets populated after the API responds.
+    function addRecordingItem(blob, duration) {
+      const idx = recordings.length + 1;
+      const name = `Recording ${idx}`;
+      const urll = URL.createObjectURL(blob);
+
+      // Remove empty state
+      emptyState.style.display = 'none';
+
+      const item = document.createElement('div');
+      item.className = 'recording-item';
+      item.innerHTML = `
+      <div class="rec-icon">🎙️</div>
+      <div class="rec-meta">
+        <div class="rec-name">${name}</div>
+        <div class="rec-duration">${fmtTime(duration)}</div>
+        <div class="rec-transcription" style="font-size: 13px; color: var(--text); margin-top: 6px; display: none; background: #f8fafc; padding: 8px; border-radius: 8px; border: 1px solid var(--border);"></div>
+      </div>
+      <div class="rec-actions">
+        <button class="icon-btn play-ic" title="Play">▶</button>
+        <button class="icon-btn dl-ic" title="Download">⬇</button>
+        <button class="icon-btn del-ic" title="Delete" style="color:#f43f5e">✕</button>
+      </div>`;
+
+      const record = { blob, url: urll, duration, name, el: item };
+      recordings.push(record);
+      recordingsList.appendChild(item);
+
+      // Wire buttons
+      const playIc = item.querySelector('.play-ic');
+      const dlIc = item.querySelector('.dl-ic');
+      const delIc = item.querySelector('.del-ic');
+
+      playIc.addEventListener('click', () => playRecording(record, playIc));
+      dlIc.addEventListener('click', () => download(record));
+      delIc.addEventListener('click', () => deleteRecording(record));
+
+      // Scroll into view
+      item.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+
+      return record;
+    }
+
+    function playRecording(record, iconBtn) {
+      // Stop any currently playing audio
+      if (currentlyPlaying) {
+        currentlyPlaying.audio.pause();
+        currentlyPlaying.audio.currentTime = 0;
+        currentlyPlaying.iconBtn.textContent = '▶';
+        currentlyPlaying.iconBtn.classList.remove('playing');
+      }
+
+      if (currentlyPlaying && currentlyPlaying.record === record) {
+        currentlyPlaying = null;
+        setStatus('ready', 'Playback stopped');
+        return;
+      }
+
+      const audio = new Audio(record.url);
+      currentlyPlaying = { audio, record, iconBtn };
+      iconBtn.textContent = '⏸';
+      iconBtn.classList.add('playing');
+      setStatus('ready', `Playing: ${record.name}`);
+
+      audio.play();
+      audio.addEventListener('ended', () => {
+        iconBtn.textContent = '▶';
+        iconBtn.classList.remove('playing');
+        setStatus('ready', 'Playback complete');
+        currentlyPlaying = null;
+      });
+    }
+
+    function download(record) {
+      const a = document.createElement('a');
+      a.href = record.url;
+      a.download = `${record.name.replace(' ', '_')}.mp3`;
+      a.click();
+    }
+
+    function deleteRecording(record) {
+      URL.revokeObjectURL(record.url);
+      record.el.remove();
+      recordings = recordings.filter(r => r !== record);
+      if (recordings.length === 0) {
+        emptyState.style.display = '';
+        playBtn.disabled = true;
+        downloadBtn.disabled = true;
+      }
+    }
+
+    // ── BLOCK 6: MICROPHONE CAPTURE & REAL-TIME MP3 ENCODING ──
+    // This is the core recording pipeline. It requests microphone access via
+    // getUserMedia(), creates a Web Audio graph to tap raw PCM samples, and
+    // encodes them into MP3 frames in real-time using the lamejs library.
+    // The flow is: Microphone → AudioContext → ScriptProcessorNode → lamejs MP3 Encoder → mp3Chunks[]
+    async function startRecording() {
+      permError.style.display = 'none';
+      let stream;
+      try {
+        // Request mono audio from the user's microphone at 44.1kHz
+        stream = await navigator.mediaDevices.getUserMedia({ audio: { sampleRate: SAMPLE_RATE, channelCount: 1 } });
+      } catch {
+        // If the user denies permission, show the error banner and abort
+        permError.style.display = 'block';
+        return;
+      }
+
+      // Create a Web Audio context and connect the mic stream as a source node
+      audioCtx = new (window.AudioContext || window.webkitAudioContext)({ sampleRate: SAMPLE_RATE });
+      source = audioCtx.createMediaStreamSource(stream);
+
+      // ── MP3 encoder setup ──
+      mp3Chunks = [];
+      mp3Encoder = new lamejs.Mp3Encoder(1 /* mono */, SAMPLE_RATE, MP3_BITRATE);
+
+      // ScriptProcessorNode taps raw PCM float32 samples
+      const bufSize = 4096;
+      scriptProcessor = audioCtx.createScriptProcessor(bufSize, 1, 1);
+      source.connect(scriptProcessor);
+      scriptProcessor.connect(audioCtx.destination);
+
+      scriptProcessor.onaudioprocess = (e) => {
+        const float32 = e.inputBuffer.getChannelData(0);
+        // Convert Float32 [-1,1] → Int16 for lame
+        const int16 = new Int16Array(float32.length);
+        for (let i = 0; i < float32.length; i++) {
+          const s = Math.max(-1, Math.min(1, float32[i]));
+          int16[i] = s < 0 ? s * 0x8000 : s * 0x7FFF;
+        }
+        const encoded = mp3Encoder.encodeBuffer(int16);
+        if (encoded.length > 0) mp3Chunks.push(new Uint8Array(encoded));
+      };
+
+      // Keep stream reference so we can stop all mic tracks on teardown
+      mediaRecorder = { stream };
+
+      // Update UI to reflect recording state
+      isRecording = true;
+      recordBtn.classList.add('stop');
+      recordLabel.textContent = 'Stop Recording';
+      setStatus('recording', 'Recording (MP3)…');
+      startTimer();
+      statusRow.classList.add('recording');
+    }
+
+    function stopRecording() {
+      if (!isRecording) return;
+      isRecording = false;
+      stopTimer();
+
+      // Flush any remaining PCM samples through the MP3 encoder
+      const final = mp3Encoder.flush();
+      if (final.length > 0) mp3Chunks.push(new Uint8Array(final));
+
+      // Combine all encoded MP3 frame buffers into a single downloadable Blob
+      const blob = new Blob(mp3Chunks, { type: 'audio/mpeg' });
+      const rec = addRecordingItem(blob, elapsed);
+
+      // Immediately send the recording to the Flask backend for transcription
+      transcribeRecording(rec);
+
+      // Enable the "Play Latest" and "Download" toolbar buttons
+      playBtn.disabled = false;
+      downloadBtn.disabled = false;
+      playBtn._latest = rec;
+      downloadBtn._latest = rec;
+
+      // Tear down the entire Web Audio graph and release the microphone
+      scriptProcessor.disconnect();
+      source.disconnect();
+      audioCtx.close();
+      mediaRecorder.stream.getTracks().forEach(t => t.stop());
+
+      // Reset UI back to idle state
+      statusRow.classList.remove('recording');
+      recordBtn.classList.remove('stop');
+      recordLabel.textContent = 'Start Recording';
+      setStatus('ready', 'MP3 recording saved ✓');
+    }
+
+    // ── BLOCK 7: BUTTON EVENT HANDLERS ──
+    // Wires click events to the three toolbar buttons: Record (toggle), Play Latest, Download.
+    recordBtn.addEventListener('click', () => {
+      isRecording ? stopRecording() : startRecording();
+    });
+
+    playBtn.addEventListener('click', () => {
+      const rec = playBtn._latest;
+      if (!rec) return;
+      const iconBtn = rec.el.querySelector('.play-ic');
+      playRecording(rec, iconBtn);
+    });
+
+    downloadBtn.addEventListener('click', () => {
+      const rec = downloadBtn._latest;
+      if (rec) download(rec);
+    });
+
+    // ── BLOCK 8: BACKEND API COMMUNICATION ──
+    // After a recording is saved, this function POSTs the MP3 blob to the Flask
+    // /transcribe endpoint along with the selected language code. The backend runs
+    // the full pipeline: IndicConformer ASR → IndicTrans2 translation → RAG query.
+    // The response contains the transcription, English translation, and RAG answer text.
+    async function transcribeRecording(record) {
+      const transDiv = record.el.querySelector('.rec-transcription');
+      transDiv.style.display = 'block';
+      transDiv.innerHTML = '<span style="color: var(--accent);">Transcribing...</span>';
+
+      const formData = new FormData();
+      formData.append('audio', record.blob, 'recording.mp3');
+
+      const lang = document.getElementById('languageSelect').value;
+      if (lang) {
+        formData.append('language', lang);
+      }
+
+      try {
+        const response = await fetch('http://localhost:5000/transcribe', {
+          method: 'POST',
+          body: formData
+        });
+
+        const data = await response.json();
+        if (data.error) {
+          transDiv.innerHTML = `<span style="color: var(--danger);">Error: ${data.error}</span>`;
+        } else {
+          let html = `<strong>Transcription:</strong> ${data.text}`;
+          if (data.translation) {
+            html += `<br><strong style="margin-top: 8px; display: inline-block; color: var(--accent);">Translation (EN):</strong> <span style="color: var(--text-light);">${data.translation}</span>`;
+          }
+          transDiv.innerHTML = html;
+
+          // ── Display RAG answer as text ──
+          if (data.rag_answer) {
+            const ragDiv = document.createElement('div');
+            ragDiv.className = 'rag-answer';
+            ragDiv.style.display = 'block';
+            ragDiv.innerHTML = `<strong>🤖 Kisan Mitra:</strong><br>${data.rag_answer}`;
+            transDiv.parentNode.appendChild(ragDiv);
+          }
+        }
+      } catch (err) {
+        transDiv.innerHTML = `<span style="color: var(--danger);">Error connecting to server. Is app.py running?</span>`;
+      }
+    }
+
+    // ── SIMPLE PERSISTENT STORAGE LOGIC ──
+    // This is the beginner-friendly logic to load old recordings from the database
+    // and show them on the screen when the page opens.
+    
+    function addHistoryItem(dbItem) {
+      // Create a URL that points to our new Flask /audio endpoint
+      const audioUrl = 'http://localhost:5000/audio/' + dbItem.filename;
+      
+      // Remove the "No recordings yet" message
+      emptyState.style.display = 'none';
+
+      // Create the HTML for the recording card
+      const itemDiv = document.createElement('div');
+      itemDiv.className = 'recording-item';
+      
+      // Build the transcription HTML from the database data
+      let textHtml = `<strong>Transcription:</strong> ${dbItem.transcription}`;
+      if (dbItem.translation) {
+        textHtml += `<br><strong style="margin-top: 8px; display: inline-block; color: var(--accent);">Translation (EN):</strong> <span style="color: var(--text-light);">${dbItem.translation}</span>`;
+      }
+      
+      let ragHtml = "";
+      if (dbItem.rag_answer) {
+        ragHtml = `<div class="rag-answer" style="display: block;"><strong>🤖 Kisan Mitra:</strong><br>${dbItem.rag_answer}</div>`;
+      }
+
+      itemDiv.innerHTML = `
+      <div class="rec-icon">🎙️</div>
+      <div class="rec-meta">
+        <div class="rec-name">Saved: ${dbItem.filename}</div>
+        <div class="rec-duration">From DB</div>
+        <div class="rec-transcription" style="font-size: 13px; color: var(--text); margin-top: 6px; display: block; background: #f8fafc; padding: 8px; border-radius: 8px; border: 1px solid var(--border);">
+          ${textHtml}
+        </div>
+        ${ragHtml}
+      </div>
+      <div class="rec-actions">
+        <button class="icon-btn play-ic" title="Play">▶</button>
+      </div>`;
+
+      // Save it in our array so the play button works
+      const record = { url: audioUrl, name: dbItem.filename, el: itemDiv };
+      recordings.push(record);
+      recordingsList.appendChild(itemDiv);
+
+      // Make the play button work
+      const playBtn = itemDiv.querySelector('.play-ic');
+      playBtn.addEventListener('click', () => playRecording(record, playBtn));
+    }
+
+    async function loadHistory() {
+      try {
+        const response = await fetch('http://localhost:5000/history');
+        const historyData = await response.json();
+        
+        // Loop through the data and add each one to the screen
+        for (let i = 0; i < historyData.length; i++) {
+          addHistoryItem(historyData[i]);
+        }
+      } catch (err) {
+        console.log("Could not load history. Is app.py running?", err);
+      }
+    }
+
+    // ── Initial state ──
+    setStatus('', 'Ready to record');
+    
+    // Load old recordings when the page starts
+    loadHistory();
+  </script>
+</body>
+
+</html>
