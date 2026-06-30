@@ -98,13 +98,6 @@ kisan-mitra/
 
 ## Quick Start
 
-### Prerequisites
-
-- **Python 3.10+** (tested on 3.14)
-- **NVIDIA GPU** with CUDA support (for ASR + translation models; CPU will work but be very slow)
-- **~4 GB disk space** for model downloads (downloaded automatically on first run)
-- **A free Groq API key** — sign up at [console.groq.com](https://console.groq.com)
-
 ### Step 1: Clone the Repository
 
 ```bash
@@ -271,19 +264,6 @@ The transcription, translation (if applicable), RAG answer, and source metadata 
 
 ---
 
-## Tested Policy Documents
-
-The system was developed and tested with these official Government of India policy documents:
-
-| Document | Policy |
-|----------|--------|
-| `RevisedPM-KISANOperationalGuidelines(English).pdf` | PM-KISAN income support scheme |
-| `PMFBY.pdf` | Pradhan Mantri Fasal Bima Yojana (crop insurance) |
-| `PM-KMY - Operational Guidelines.pdf` | PM Kisan Maan-Dhan Yojana (pension) |
-| `PDMC guidlines.pdf` | Per Drop More Crop (micro-irrigation) |
-
----
-
 ## Troubleshooting
 
 | Issue | Solution |
@@ -295,12 +275,5 @@ The system was developed and tested with these official Government of India poli
 | Models not downloading | Check internet connection; models are cached in `~/.cache/huggingface/` |
 | `ModuleNotFoundError: IndicTransToolkit` | Run `pip install git+https://github.com/VarunGumma/IndicTransToolkit.git` |
 
----
-
-## License
-
-This project was developed as part of an internship at the **Wadhwani Center for Government Digital Transformation (WGDT)**.
-
----
 
 *Built by Aditya Kapoor • Internship Period: May–June 2025*
