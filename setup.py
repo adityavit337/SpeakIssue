@@ -1,0 +1,30 @@
+from setuptools import setup, find_packages
+
+setup(
+    name="kisan-mitra",
+    version="1.0.0",
+    description="Multilingual voice-driven RAG assistant for Indian agricultural policies",
+    author="Aditya Kapoor",
+    python_requires=">=3.10",
+    py_modules=["app", "rag_manager", "ingest"],
+    install_requires=[
+        "flask>=3.0",
+        "flask-cors>=6.0",
+        "torch>=2.0",
+        "torchaudio>=2.0",
+        "transformers>=4.40",
+        "indictranstoolkit @ git+https://github.com/VarunGumma/IndicTransToolkit.git",
+        "llama-index-core>=0.14",
+        "llama-index-llms-groq>=0.3",
+        "llama-index-embeddings-huggingface>=0.5",
+        "llama-index-vector-stores-chroma>=0.5",
+        "llama-index-retrievers-bm25>=0.5",
+        "llama-index-readers-file>=0.5",
+        "chromadb>=1.0",
+        "sentence-transformers>=5.0",
+        "huggingface-hub>=0.30",
+        "pdfplumber>=0.11",
+        "ddgs>=9.0",
+        "python-dotenv>=1.0",
+    ],
+)

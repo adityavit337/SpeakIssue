@@ -4,35 +4,33 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Voice Input — Policy Assistant</title>
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet" />
+  <meta name="description" content="Kisan Mitra — AI-powered agricultural policy assistant. Ask about PM-KISAN, PMFBY, and more in any Indian language." />
+  <title>Kisan Mitra — Agricultural Policy Assistant</title>
+  <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,700;0,900;1,400&family=Source+Serif+4:ital,wght@0,300;0,400;0,600;1,400&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
   <!-- MP3 encoder -->
   <script src="https://cdnjs.cloudflare.com/ajax/libs/lamejs/1.2.1/lame.min.js"></script>
   <style>
-    *,
-    *::before,
-    *::after {
-      box-sizing: border-box;
-      margin: 0;
-      padding: 0;
-    }
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
     :root {
-      --bg: #ffffff;
-      --surface: #f8fafc;
-      --card: #ffffff;
-      --border: #e2e8f0;
-      --accent: #6378ff;
-      --accent2: #a855f7;
-      --danger: #f43f5e;
-      --success: #10b981;
-      --text: #0f172a;
-      --muted: #64748b;
-      --radius: 16px;
+      --bg: #FFFFFF;
+      --surface: #F5F5F5;
+      --card: #FFFFFF;
+      --border: #E5E5E5;
+      --accent: #000000;
+      --accent2: #000000;
+      --danger: #000000;
+      --success: #000000;
+      --text: #000000;
+      --muted: #525252;
+      --radius: 0px;
+      --font-display: "Playfair Display", Georgia, serif;
+      --font-body: "Source Serif 4", Georgia, serif;
+      --font-mono: "JetBrains Mono", monospace;
     }
 
     body {
-      font-family: 'Inter', sans-serif;
+      font-family: var(--font-body);
       background: var(--bg);
       color: var(--text);
       min-height: 100vh;
@@ -40,52 +38,81 @@
       flex-direction: column;
       align-items: center;
       justify-content: center;
-      padding: 24px;
+      padding: 40px 24px;
+      position: relative;
     }
 
-    /* ── Background glow ── */
+    /* ── Noise texture (paper-like) ── */
     body::before {
       content: '';
       position: fixed;
-      top: -200px;
-      left: 50%;
-      transform: translateX(-50%);
-      width: 700px;
-      height: 700px;
-      background: radial-gradient(circle, rgba(99, 120, 255, 0.12) 0%, transparent 70%);
+      inset: 0;
+      background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.8' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+      opacity: 0.02;
       pointer-events: none;
+      z-index: 0;
     }
+
+    /* ── Horizontal line texture ── */
+    body::after {
+      content: '';
+      position: fixed;
+      inset: 0;
+      background-image: repeating-linear-gradient(0deg, transparent, transparent 1px, #000 1px, #000 2px);
+      background-size: 100% 4px;
+      opacity: 0.012;
+      pointer-events: none;
+      z-index: 0;
+    }
+
+    /* ── Hero decoration ── */
+    .hero-decoration {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      width: 100%;
+      max-width: 560px;
+      margin-bottom: 20px;
+    }
+    .hero-rule { flex: 1; height: 4px; background: #000; }
+    .hero-square { width: 10px; height: 10px; border: 2px solid #000; flex-shrink: 0; }
 
     h1 {
-      font-size: clamp(1.6rem, 4vw, 2.4rem);
-      font-weight: 700;
+      font-family: var(--font-display);
+      font-size: clamp(3rem, 8vw, 5.5rem);
+      font-weight: 900;
       text-align: center;
-      color: var(--text);
+      color: #000;
+      letter-spacing: -0.03em;
+      line-height: 1;
       margin-bottom: 8px;
+      position: relative;
+      z-index: 1;
     }
 
+    .subtitle {
+      font-family: var(--font-body);
+      font-size: clamp(0.95rem, 2vw, 1.15rem);
+      font-style: italic;
+      font-weight: 300;
+      color: var(--muted);
+      text-align: center;
+      margin-bottom: 32px;
+      letter-spacing: 0.01em;
+      position: relative;
+      z-index: 1;
+    }
 
     /* ── Card ── */
     .card {
       background: var(--card);
-      border: 1px solid var(--border);
-      border-radius: var(--radius);
+      border: 1px solid #000;
+      border-top: 4px solid #000;
       padding: 36px 32px;
       width: 100%;
-      max-width: 520px;
-      box-shadow: 0 12px 48px rgba(0, 0, 0, 0.06);
+      max-width: 560px;
       position: relative;
-      overflow: hidden;
-    }
-
-    .card::before {
-      content: '';
-      position: absolute;
-      top: 0;
-      left: 0;
-      right: 0;
-      height: 1px;
-      background: linear-gradient(90deg, transparent, var(--accent), transparent);
+      z-index: 1;
     }
 
     /* ── Status chip ── */
@@ -93,12 +120,13 @@
       display: flex;
       align-items: center;
       gap: 8px;
-      font-size: 13px;
-      font-weight: 500;
+      font-family: var(--font-mono);
+      font-size: 12px;
+      font-weight: 400;
       color: var(--muted);
       margin-bottom: 24px;
       min-height: 22px;
-      transition: color 0.3s;
+      transition: color 100ms;
     }
 
     .status .dot {
@@ -107,50 +135,29 @@
       border-radius: 50%;
       background: var(--muted);
       flex-shrink: 0;
-      transition: background 0.3s;
+      transition: background 100ms;
     }
 
-    .status.recording {
-      color: var(--danger);
-    }
+    .status.recording { color: #000; font-weight: 500; }
+    .status.recording .dot { background: #000; animation: blink 1s step-start infinite; }
+    .status.ready { color: #000; }
+    .status.ready .dot { background: #000; }
 
-    .status.recording .dot {
-      background: var(--danger);
-      animation: blink 1s step-start infinite;
-    }
-
-    .status.ready {
-      color: var(--success);
-    }
-
-    .status.ready .dot {
-      background: var(--success);
-    }
-
-    @keyframes blink {
-      50% {
-        opacity: 0;
-      }
-    }
+    @keyframes blink { 50% { opacity: 0; } }
 
     /* ── Timer ── */
     .timer {
+      font-family: var(--font-mono);
       font-variant-numeric: tabular-nums;
-      font-size: 13px;
-      color: var(--danger);
+      font-size: 12px;
+      color: #000;
       margin-left: auto;
       display: none;
     }
-
-    .recording .timer {
-      display: block;
-    }
+    .recording .timer { display: block; }
 
     /* ── Buttons ── */
-    .btn-row {
-      display: flex;
-      gap: 12px;
-    }
+    .btn-row { display: flex; gap: 10px; }
 
     .btn {
       flex: 1;
@@ -158,78 +165,49 @@
       align-items: center;
       justify-content: center;
       gap: 8px;
-      padding: 14px 18px;
-      border: none;
-      border-radius: 12px;
-      font-family: 'Inter', sans-serif;
-      font-size: 14px;
-      font-weight: 600;
+      padding: 14px 20px;
+      border: 2px solid #000;
+      font-family: var(--font-mono);
+      font-size: 11px;
+      font-weight: 500;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
       cursor: pointer;
-      transition: all 0.2s ease;
+      transition: background 100ms, color 100ms;
       position: relative;
-      overflow: hidden;
     }
 
-    .btn:disabled {
-      opacity: 0.35;
-      cursor: not-allowed;
-      pointer-events: none;
-    }
+    .btn:disabled { opacity: 0.25; cursor: not-allowed; pointer-events: none; }
+    .btn:not(:disabled):active { transform: scale(0.98); }
+    .btn:not(:disabled):focus-visible { outline: 3px solid #000; outline-offset: 3px; }
 
-    .btn::after {
-      content: '';
-      position: absolute;
-      inset: 0;
-      background: rgba(255, 255, 255, 0);
-      transition: background 0.2s;
-    }
+    #recordBtn { background: #000; color: #fff; }
+    #recordBtn:not(:disabled):hover { background: #fff; color: #000; }
+    #recordBtn.stop { background: #fff; color: #000; border-style: dashed; }
+    #recordBtn.stop:hover { background: #000; color: #fff; }
 
-    .btn:not(:disabled):hover::after {
-      background: rgba(255, 255, 255, 0.06);
-    }
-
-    .btn:not(:disabled):active {
-      transform: scale(0.97);
-    }
-
-    #recordBtn {
-      background: var(--accent);
-      color: #fff;
-      box-shadow: 0 4px 20px rgba(99, 120, 255, 0.35);
-    }
-
-    #recordBtn.stop {
-      background: var(--danger);
-      box-shadow: 0 4px 20px rgba(244, 63, 94, 0.35);
-    }
-
-    #playBtn {
-      background: rgba(16, 185, 129, 0.12);
-      color: var(--success);
-      border: 1px solid rgba(16, 185, 129, 0.25);
-    }
-
-    #playBtn:not(:disabled):hover {
-      background: rgba(16, 185, 129, 0.2);
-    }
+    #playBtn { background: #fff; color: #000; }
+    #playBtn:not(:disabled):hover { background: #000; color: #fff; }
 
     #downloadBtn {
-      background: rgba(99, 120, 255, 0.1);
-      color: var(--accent);
-      border: 1px solid var(--border);
+      background: #fff;
+      color: #000;
       flex: 0 0 auto;
       padding: 14px 16px;
     }
+    #downloadBtn:not(:disabled):hover { background: #000; color: #fff; }
+
+    /* ── Section divider ── */
+    .section-rule { height: 4px; background: #000; margin: 28px 0 20px; }
 
     /* ── Recordings list ── */
-    .recordings-section {
-      margin-top: 28px;
-    }
+    .recordings-section { margin-top: 0; }
 
     .recordings-label {
-      font-size: 12px;
-      font-weight: 600;
-      letter-spacing: 0.08em;
+      font-family: var(--font-mono);
+      font-size: 11px;
+      font-weight: 500;
+      letter-spacing: 0.1em;
       color: var(--muted);
       text-transform: uppercase;
       margin-bottom: 12px;
@@ -239,40 +217,35 @@
       display: flex;
       flex-direction: column;
       gap: 8px;
-      max-height: 220px;
+      max-height: 400px;
       overflow-y: auto;
       scrollbar-width: thin;
-      scrollbar-color: var(--border) transparent;
+      scrollbar-color: #000 transparent;
     }
 
     .recording-item {
       display: flex;
-      align-items: center;
+      align-items: flex-start;
       gap: 12px;
-      background: #ffffff;
-      border: 1px solid var(--border);
-      border-radius: 10px;
-      padding: 10px 14px;
-      animation: slideIn 0.3s ease;
+      background: #fff;
+      border: 1px solid #000;
+      border-left: 4px solid transparent;
+      padding: 12px 14px;
+      transition: border-left-color 100ms;
+      animation: slideIn 200ms ease;
     }
+    .recording-item:hover { border-left-color: #000; }
 
     @keyframes slideIn {
-      from {
-        opacity: 0;
-        transform: translateY(6px);
-      }
-
-      to {
-        opacity: 1;
-        transform: translateY(0);
-      }
+      from { opacity: 0; transform: translateY(4px); }
+      to { opacity: 1; transform: translateY(0); }
     }
 
     .rec-icon {
       width: 32px;
       height: 32px;
-      background: rgba(99, 120, 255, 0.12);
-      border-radius: 8px;
+      background: #F5F5F5;
+      border: 1px solid #000;
       display: flex;
       align-items: center;
       justify-content: center;
@@ -280,34 +253,29 @@
       flex-shrink: 0;
     }
 
-    .rec-meta {
-      flex: 1;
-      min-width: 0;
-    }
+    .rec-meta { flex: 1; min-width: 0; }
 
     .rec-name {
-      font-size: 13px;
-      font-weight: 500;
+      font-family: var(--font-display);
+      font-size: 14px;
+      font-weight: 700;
       white-space: nowrap;
       overflow: hidden;
       text-overflow: ellipsis;
     }
 
     .rec-duration {
+      font-family: var(--font-mono);
       font-size: 11px;
       color: var(--muted);
-      margin-top: 1px;
+      margin-top: 2px;
     }
 
-    .rec-actions {
-      display: flex;
-      gap: 6px;
-    }
+    .rec-actions { display: flex; gap: 6px; }
 
     .icon-btn {
       background: none;
-      border: 1px solid var(--border);
-      border-radius: 8px;
+      border: 1px solid #000;
       width: 30px;
       height: 30px;
       cursor: pointer;
@@ -315,73 +283,61 @@
       align-items: center;
       justify-content: center;
       font-size: 13px;
-      color: var(--muted);
-      transition: all 0.2s;
+      color: #000;
+      transition: all 100ms;
     }
-
-    .icon-btn:hover {
-      border-color: var(--accent);
-      color: var(--accent);
-      background: rgba(99, 120, 255, 0.08);
-    }
-
-    .icon-btn.playing {
-      border-color: var(--success);
-      color: var(--success);
-    }
+    .icon-btn:hover { background: #000; color: #fff; }
+    .icon-btn:focus-visible { outline: 3px solid #000; outline-offset: 2px; }
+    .icon-btn.playing { background: #000; color: #fff; }
 
     .empty-state {
       text-align: center;
       color: var(--muted);
+      font-family: var(--font-body);
+      font-style: italic;
       font-size: 13px;
-      padding: 20px 0;
+      padding: 24px 0;
     }
 
     /* ── Permission error ── */
     .perm-error {
       display: none;
-      background: rgba(244, 63, 94, 0.08);
-      border: 1px solid rgba(244, 63, 94, 0.25);
-      border-radius: 10px;
+      background: #F5F5F5;
+      border: 2px solid #000;
       padding: 12px 16px;
       font-size: 13px;
-      color: #fda4af;
+      color: #000;
       margin-bottom: 16px;
     }
 
-
-    /* ── RAG answer bubble ── */
+    /* ── RAG answer (inverted card) ── */
     .rag-answer {
       display: none;
-      margin-top: 8px;
-      padding: 10px 14px;
-      background: linear-gradient(135deg, rgba(99, 120, 255, 0.06), rgba(168, 85, 247, 0.06));
-      border: 1px solid rgba(99, 120, 255, 0.18);
-      border-radius: 10px;
+      margin-top: 10px;
+      padding: 16px 20px;
+      background: #000;
+      color: #fff;
+      font-family: var(--font-body);
       font-size: 13px;
-      color: var(--text);
-      line-height: 1.6;
+      line-height: 1.7;
     }
-
-    .rag-answer strong {
-      color: var(--accent);
-    }
+    .rag-answer strong { color: #fff; }
 
     /* ── Source metadata tags ── */
     .sources-section {
-      margin-top: 10px;
+      margin-top: 8px;
       padding: 10px 14px;
-      background: rgba(16, 185, 129, 0.04);
-      border: 1px solid rgba(16, 185, 129, 0.15);
-      border-radius: 10px;
+      background: #F5F5F5;
+      border: 1px solid #000;
     }
 
     .sources-label {
-      font-size: 11px;
-      font-weight: 600;
-      letter-spacing: 0.06em;
+      font-family: var(--font-mono);
+      font-size: 10px;
+      font-weight: 500;
+      letter-spacing: 0.1em;
       text-transform: uppercase;
-      color: var(--success);
+      color: #000;
       margin-bottom: 8px;
       display: flex;
       align-items: center;
@@ -393,24 +349,16 @@
       align-items: center;
       gap: 6px;
       background: #fff;
-      border: 1px solid var(--border);
-      border-radius: 8px;
-      padding: 5px 10px;
+      border: 1px solid #000;
+      padding: 4px 10px;
       margin: 3px 4px 3px 0;
-      font-size: 12px;
-      color: var(--text);
-      transition: all 0.2s ease;
-    }
-
-    .source-tag:hover {
-      border-color: var(--accent);
-      box-shadow: 0 2px 8px rgba(99, 120, 255, 0.1);
-    }
-
-    .source-tag .tag-icon {
+      font-family: var(--font-mono);
       font-size: 11px;
+      color: #000;
+      transition: all 100ms;
     }
-
+    .source-tag:hover { background: #000; color: #fff; }
+    .source-tag .tag-icon { font-size: 11px; }
     .source-tag .tag-name {
       font-weight: 500;
       max-width: 200px;
@@ -418,28 +366,27 @@
       text-overflow: ellipsis;
       white-space: nowrap;
     }
+    .source-tag.web-source { border-style: dashed; }
+    .source-tag a { color: #000; text-decoration: underline; font-size: 11px; }
+    .source-tag:hover a { color: #fff; }
 
-    .source-tag.web-source {
-      border-color: rgba(168, 85, 247, 0.25);
+    /* ── Responsive ── */
+    @media (max-width: 600px) {
+      body { padding: 24px 16px; }
+      .card { padding: 24px 20px; }
+      .btn-row { flex-direction: column; }
+      .btn { padding: 14px 16px; }
+      .hero-decoration { max-width: 100%; }
     }
-
-    .source-tag a {
-      color: var(--accent2);
-      text-decoration: none;
-      font-size: 11px;
-    }
-
-    .source-tag a:hover {
-      text-decoration: underline;
-    }
-
   </style>
 </head>
 
 <body>
 
 
-  <h1>Speak Your Issue</h1>
+  <div class="hero-decoration"><div class="hero-rule"></div><div class="hero-square"></div></div>
+  <h1>Kisan Mitra</h1>
+  <p class="subtitle">Ask us anything about agricultural policies — we're here to help</p>
   <div class="card">
     <div id="permError" class="perm-error">
       ⚠️ Microphone access denied. Please allow microphone permissions in your browser settings.
@@ -454,7 +401,7 @@
         <span class="timer" id="timerDisplay">0:00</span>
       </div>
       <select id="languageSelect"
-        style="background: var(--surface); color: var(--text); border: 1px solid var(--border); border-radius: 8px; padding: 6px 10px; font-size: 12px; font-family: inherit; outline: none; cursor: pointer;">
+        style="background: #fff; color: #000; border: 2px solid #000; border-radius: 0; padding: 6px 10px; font-size: 11px; font-family: var(--font-mono); letter-spacing: 0.05em; outline: none; cursor: pointer; text-transform: uppercase;">
         <option value="en">English</option>
         <option value="hi" selected>Hindi</option>
         <option value="bn">Bengali</option>
@@ -489,6 +436,9 @@
         </svg>
       </button>
     </div>
+
+    <!-- Section divider -->
+    <div class="section-rule"></div>
 
     <!-- Recordings history -->
     <div class="recordings-section">
@@ -617,12 +567,12 @@
       <div class="rec-meta">
         <div class="rec-name">${name}</div>
         <div class="rec-duration">${fmtTime(duration)}</div>
-        <div class="rec-transcription" style="font-size: 13px; color: var(--text); margin-top: 6px; display: none; background: #f8fafc; padding: 8px; border-radius: 8px; border: 1px solid var(--border);"></div>
+        <div class="rec-transcription" style="font-size: 13px; color: #000; margin-top: 6px; display: none; background: #F5F5F5; padding: 8px 12px; border: 1px solid #000;"></div>
       </div>
       <div class="rec-actions">
         <button class="icon-btn play-ic" title="Play">▶</button>
         <button class="icon-btn dl-ic" title="Download">⬇</button>
-        <button class="icon-btn del-ic" title="Delete" style="color:#f43f5e">✕</button>
+        <button class="icon-btn del-ic" title="Delete">✕</button>
       </div>`;
 
       const record = { blob, url: urll, duration, name, el: item };
@@ -893,7 +843,7 @@
       <div class="rec-meta">
         <div class="rec-name">Saved: ${dbItem.filename}</div>
         <div class="rec-duration">From DB</div>
-        <div class="rec-transcription" style="font-size: 13px; color: var(--text); margin-top: 6px; display: block; background: #f8fafc; padding: 8px; border-radius: 8px; border: 1px solid var(--border);">
+        <div class="rec-transcription" style="font-size: 13px; color: #000; margin-top: 6px; display: block; background: #F5F5F5; padding: 8px 12px; border: 1px solid #000;">
           ${textHtml}
         </div>
         ${ragHtml}
